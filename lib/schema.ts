@@ -47,7 +47,7 @@ export const campaigns = pgTable(
     subject: varchar("subject", { length: 255 }).notNull(),
     content: text("content").notNull(),
     status: varchar("status", { length: 50 }).default("draft").notNull(), // draft, scheduled, sending, sent
-    priority: integer("priority").default(0).notNull(), // 0-10, higher = more important
+    priority: varchar("priority", { length: 20 }).default("normal").notNull(), // high, normal, low
     scheduledAt: timestamp("scheduled_at"),
     sentAt: timestamp("sent_at"),
     totalRecipients: integer("total_recipients").default(0),
@@ -72,13 +72,15 @@ export const emailQueue = pgTable(
       .notNull()
       .references(() => campaigns.id, { onDelete: "cascade" }),
     customerId: integer("customer_id")
-      .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
     recipientEmail: varchar("recipient_email", { length: 255 }).notNull(),
+    recipientName: varchar("recipient_name", { length: 255 }),
     status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, processing, sent, failed
-    attempts: integer("attempts").default(0),
-    maxAttempts: integer("max_attempts").default(3),
+    priority: integer("priority").default(500).notNull(), // Higher number = higher priority
+    retryCount: integer("retry_count").default(0),
+    maxRetries: integer("max_retries").default(3),
     error: text("error"),
+    scheduledAt: timestamp("scheduled_at").defaultNow().notNull(),
     sentAt: timestamp("sent_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -96,19 +98,42 @@ export const emailLogs = pgTable(
   {
     id: serial("id").primaryKey(),
     campaignId: integer("campaign_id")
-      .notNull()
       .references(() => campaigns.id, { onDelete: "cascade" }),
     customerId: integer("customer_id")
-      .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
     recipientEmail: varchar("recipient_email", { length: 255 }).notNull(),
     status: varchar("status", { length: 50 }).notNull(), // sent, failed, bounced
+    error: text("error"),
     metadata: jsonb("metadata"),
-    sentAt: timestamp("sent_at").defaultNow().notNull(),
+    sentAt: timestamp("sent_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({
     campaignIdIdx: index("email_logs_campaign_id_idx").on(table.campaignId),
     statusIdx: index("email_logs_status_idx").on(table.status),
+  }),
+)
+
+// System logs table (for comprehensive logging)
+export const systemLogs = pgTable(
+  "system_logs",
+  {
+    id: serial("id").primaryKey(),
+    level: varchar("level", { length: 20 }).notNull(), // info, warn, error, debug
+    category: varchar("category", { length: 50 }).notNull(), // queue, auth, api, email
+    message: text("message").notNull(),
+    userId: integer("user_id").references(() => users.id),
+    campaignId: integer("campaign_id").references(() => campaigns.id),
+    metadata: jsonb("metadata"),
+    ipAddress: varchar("ip_address", { length: 45 }),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    levelIdx: index("system_logs_level_idx").on(table.level),
+    categoryIdx: index("system_logs_category_idx").on(table.category),
+    createdAtIdx: index("system_logs_created_at_idx").on(table.createdAt),
+    userIdIdx: index("system_logs_user_id_idx").on(table.userId),
   }),
 )
 

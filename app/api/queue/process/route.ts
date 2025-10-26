@@ -1,149 +1,199 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { emailQueue, emailLogs, campaigns } from "@/lib/schema"
-import { eq } from "drizzle-orm"
+import { eq, and, desc, sql } from "drizzle-orm"
 
-// Simulated email sending function
-// In production, integrate with SendGrid, AWS SES, Mailgun, etc.
-async function sendEmail(to: string, subject: string, content: string): Promise<boolean> {
-  try {
-    // Simulate email sending with 95% success rate
-    if (Math.random() > 0.95) {
-      throw new Error("Simulated email failure")
-    }
-
-    console.log(`[Email Sent] To: ${to}, Subject: ${subject}`)
-    return true
-  } catch (error) {
-    console.error(`[Email Failed] To: ${to}, Error: ${error}`)
-    return false
-  }
-}
+const BATCH_SIZE = 50 // Process 50 emails at a time
+const MAX_CONCURRENT_BATCHES = 5 // Allow 5 parallel processing batches
 
 export async function POST(request: NextRequest) {
   try {
-    // Get pending emails from queue, ordered by priority (campaigns with higher priority first)
+    const results = await processEmailQueue()
+    return NextResponse.json(results)
+  } catch (error) {
+    console.error("Error processing queue:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+async function processEmailQueue() {
+  const startTime = Date.now()
+  let totalProcessed = 0
+  let totalSuccess = 0
+  let totalFailed = 0
+
+  // Process multiple batches concurrently for load balancing
+  const batchPromises = []
+  
+  for (let i = 0; i < MAX_CONCURRENT_BATCHES; i++) {
+    batchPromises.push(processBatch())
+  }
+
+  const batchResults = await Promise.all(batchPromises)
+  
+  // Aggregate results
+  batchResults.forEach(result => {
+    totalProcessed += result.processed
+    totalSuccess += result.success
+    totalFailed += result.failed
+  })
+
+  const processingTime = Date.now() - startTime
+
+  return {
+    processed: totalProcessed,
+    success: totalSuccess,
+    failed: totalFailed,
+    processingTime,
+    throughput: Math.round((totalProcessed / processingTime) * 1000) // emails per second
+  }
+}
+
+async function processBatch() {
+  let processed = 0
+  let success = 0
+  let failed = 0
+
+  try {
+    // Get pending emails ordered by priority (highest first)
     const pendingEmails = await db
-      .select()
+      .select({
+        id: emailQueue.id,
+        campaignId: emailQueue.campaignId,
+        recipientEmail: emailQueue.recipientEmail,
+        recipientName: emailQueue.recipientName,
+        priority: emailQueue.priority,
+        retryCount: emailQueue.retryCount
+      })
       .from(emailQueue)
-      .innerJoin(campaigns, eq(emailQueue.campaignId, campaigns.id))
-      .where(eq(emailQueue.status, "pending"))
-      .orderBy((t) => [
-        // Order by campaign priority (descending), then by queue creation time
-        (campaigns, { desc }) => desc(campaigns.priority),
-        (emailQueue, { asc }) => asc(emailQueue.createdAt),
-      ])
-      .limit(100) // Process max 100 emails per request
+      .where(
+        and(
+          eq(emailQueue.status, 'pending'),
+          sql`${emailQueue.scheduledAt} <= NOW()`
+        )
+      )
+      .orderBy(desc(emailQueue.priority))
+      .limit(BATCH_SIZE)
 
     if (pendingEmails.length === 0) {
-      return NextResponse.json({ processed: 0, message: "No pending emails" })
+      return { processed: 0, success: 0, failed: 0 }
     }
 
-    let successCount = 0
-    let failureCount = 0
+    // Mark as processing
+    const emailIds = pendingEmails.map(email => email.id)
+    await db
+      .update(emailQueue)
+      .set({ 
+        status: 'processing',
+        updatedAt: new Date()
+      })
+      .where(sql`${emailQueue.id} IN (${emailIds.join(',')})`)
 
-    for (const { email_queue, campaigns: campaign } of pendingEmails) {
-      try {
-        // Update status to processing
+    // Process emails concurrently within batch
+    const emailPromises = pendingEmails.map(email => processEmail(email))
+    const results = await Promise.allSettled(emailPromises)
+
+    // Update status based on results
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i]
+      const email = pendingEmails[i]
+      processed++
+
+      if (result.status === 'fulfilled' && result.value.success) {
+        // Mark as sent
         await db
           .update(emailQueue)
-          .set({ status: "processing", updatedAt: new Date() })
-          .where(eq(emailQueue.id, email_queue.id))
+          .set({ 
+            status: 'sent',
+            sentAt: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(emailQueue.id, email.id))
 
-        // Attempt to send email
-        const success = await sendEmail(email_queue.recipientEmail, campaign.subject, campaign.content)
+        // Log success
+        await db.insert(emailLogs).values({
+          campaignId: email.campaignId,
+          recipientEmail: email.recipientEmail,
+          status: 'sent',
+          sentAt: new Date(),
+          createdAt: new Date()
+        })
 
-        if (success) {
-          // Update queue item as sent
+        success++
+      } else {
+        // Handle failure with retry logic
+        const newRetryCount = (email.retryCount || 0) + 1
+        const maxRetries = 3
+
+        if (newRetryCount >= maxRetries) {
+          // Mark as failed permanently
           await db
             .update(emailQueue)
-            .set({
-              status: "sent",
-              sentAt: new Date(),
-              updatedAt: new Date(),
+            .set({ 
+              status: 'failed',
+              retryCount: newRetryCount,
+              updatedAt: new Date()
             })
-            .where(eq(emailQueue.id, email_queue.id))
-
-          // Log successful send
-          await db.insert(emailLogs).values({
-            campaignId: email_queue.campaignId,
-            customerId: email_queue.customerId,
-            recipientEmail: email_queue.recipientEmail,
-            status: "sent",
-            metadata: { sentAt: new Date().toISOString() },
-          })
-
-          // Update campaign stats
-          await db
-            .update(campaigns)
-            .set({
-              sentCount: campaign.sentCount + 1,
-              updatedAt: new Date(),
-            })
-            .where(eq(campaigns.id, campaign.id))
-
-          successCount++
+            .where(eq(emailQueue.id, email.id))
         } else {
-          // Increment attempts
-          const newAttempts = email_queue.attempts + 1
-
-          if (newAttempts >= email_queue.maxAttempts) {
-            // Max attempts reached, mark as failed
-            await db
-              .update(emailQueue)
-              .set({
-                status: "failed",
-                attempts: newAttempts,
-                error: "Max retry attempts exceeded",
-                updatedAt: new Date(),
-              })
-              .where(eq(emailQueue.id, email_queue.id))
-
-            // Log failed send
-            await db.insert(emailLogs).values({
-              campaignId: email_queue.campaignId,
-              customerId: email_queue.customerId,
-              recipientEmail: email_queue.recipientEmail,
-              status: "failed",
-              metadata: { attempts: newAttempts, error: "Max retries exceeded" },
+          // Schedule for retry with exponential backoff
+          const retryDelay = Math.pow(2, newRetryCount) * 60000 // 2^n minutes
+          const retryAt = new Date(Date.now() + retryDelay)
+          
+          await db
+            .update(emailQueue)
+            .set({ 
+              status: 'pending',
+              retryCount: newRetryCount,
+              scheduledAt: retryAt,
+              updatedAt: new Date()
             })
-
-            // Update campaign stats
-            await db
-              .update(campaigns)
-              .set({
-                failedCount: campaign.failedCount + 1,
-                updatedAt: new Date(),
-              })
-              .where(eq(campaigns.id, campaign.id))
-
-            failureCount++
-          } else {
-            // Retry later
-            await db
-              .update(emailQueue)
-              .set({
-                status: "pending",
-                attempts: newAttempts,
-                error: "Temporary failure, will retry",
-                updatedAt: new Date(),
-              })
-              .where(eq(emailQueue.id, email_queue.id))
-          }
+            .where(eq(emailQueue.id, email.id))
         }
-      } catch (error) {
-        console.error(`Error processing email ${email_queue.id}:`, error)
-        failureCount++
+
+        // Log failure
+        await db.insert(emailLogs).values({
+          campaignId: email.campaignId,
+          recipientEmail: email.recipientEmail,
+          status: 'failed',
+          error: result.status === 'rejected' ? result.reason?.message : 'Unknown error',
+          createdAt: new Date()
+        })
+
+        failed++
       }
     }
 
-    return NextResponse.json({
-      processed: pendingEmails.length,
-      success: successCount,
-      failed: failureCount,
-    })
+    return { processed, success, failed }
   } catch (error) {
-    console.error("Queue processing error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error processing batch:", error)
+    return { processed, success, failed }
+  }
+}
+
+async function processEmail(email: any): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Simulate email sending (replace with actual email service)
+    await simulateEmailSending(email)
+    
+    // In production, integrate with:
+    // - SendGrid: await sendgrid.send(emailData)
+    // - AWS SES: await ses.sendEmail(emailParams).promise()
+    // - Mailgun: await mailgun.messages().send(emailData)
+    
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+}
+
+async function simulateEmailSending(email: any): Promise<void> {
+  // Simulate network delay and potential failures
+  const delay = Math.random() * 100 + 50 // 50-150ms delay
+  await new Promise(resolve => setTimeout(resolve, delay))
+  
+  // Simulate 5% failure rate
+  if (Math.random() < 0.05) {
+    throw new Error("Simulated email sending failure")
   }
 }
