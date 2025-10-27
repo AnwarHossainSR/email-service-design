@@ -10,6 +10,10 @@ export const users = pgTable(
     name: varchar("name", { length: 255 }).notNull(),
     password: varchar("password", { length: 255 }).notNull(),
     role: varchar("role", { length: 20 }).default("user").notNull(), // admin, user
+    subscriptionPlan: varchar("subscription_plan", { length: 20 }).default("free").notNull(),
+    emailsSentThisMonth: integer("emails_sent_this_month").default(0),
+    emailLimit: integer("email_limit").default(20),
+    subscriptionExpiresAt: timestamp("subscription_expires_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

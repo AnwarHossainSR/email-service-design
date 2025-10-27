@@ -13,7 +13,12 @@
     "db:reset": "node scripts/full-reset-seed.js"
   },
   "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.10",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-label": "^2.1.7",
+    "@radix-ui/react-progress": "^1.1.7",
+    "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.3",
     "@tailwindcss/postcss": "^4.1.16",
     "@types/pg": "latest",
@@ -28,6 +33,7 @@
     "next": "^16.0.0",
     "next-themes": "^0.2.1",
     "pg": "latest",
+    "postgres": "^3.4.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "latest",
