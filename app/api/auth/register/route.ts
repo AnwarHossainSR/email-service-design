@@ -22,12 +22,14 @@ export async function POST(request: NextRequest) {
 
     // Hash password and create user
     const hashedPassword = await hashPassword(password)
+    const role = email === 'admin@emailflow.com' ? 'admin' : 'user'
     const newUser = await db
       .insert(users)
       .values({
         email,
         name,
         password: hashedPassword,
+        role,
       })
       .returning()
 
@@ -39,6 +41,7 @@ export async function POST(request: NextRequest) {
           id: newUser[0].id,
           email: newUser[0].email,
           name: newUser[0].name,
+          role: newUser[0].role,
         },
         token,
       },

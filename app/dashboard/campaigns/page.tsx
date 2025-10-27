@@ -19,10 +19,10 @@ interface Campaign {
   name: string
   subject: string
   status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'paused'
-  recipients: number
-  sent: number
-  opens: number
-  clicks: number
+  totalRecipients?: number
+  sentCount?: number
+  openCount?: number
+  clickCount?: number
   createdAt: string
   scheduledAt?: string
   priority: 'low' | 'normal' | 'high'
@@ -157,28 +157,28 @@ export default function CampaignsPage() {
                   <div className="flex items-center space-x-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="font-medium">{campaign.recipients.toLocaleString()}</p>
+                      <p className="font-medium">{(campaign.totalRecipients || 0).toLocaleString()}</p>
                       <p className="text-muted-foreground">Recipients</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Send className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="font-medium">{campaign.sent.toLocaleString()}</p>
+                      <p className="font-medium">{(campaign.sentCount || 0).toLocaleString()}</p>
                       <p className="text-muted-foreground">Sent</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Eye className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="font-medium">{campaign.opens.toLocaleString()}</p>
+                      <p className="font-medium">{(campaign.openCount || 0).toLocaleString()}</p>
                       <p className="text-muted-foreground">Opens</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <MousePointer className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="font-medium">{campaign.clicks.toLocaleString()}</p>
+                      <p className="font-medium">{(campaign.clickCount || 0).toLocaleString()}</p>
                       <p className="text-muted-foreground">Clicks</p>
                     </div>
                   </div>

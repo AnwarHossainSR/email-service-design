@@ -191,15 +191,22 @@ export class EmailQueueProcessor {
 
   private async processEmail(email: any): Promise<{ success: boolean; error?: string }> {
     try {
-      // Simulate email sending with realistic delays
-      await this.simulateEmailSending(email)
+      const { emailService } = await import('./email-service')
       
-      // In production, integrate with actual email service:
-      // - SendGrid: await sendgrid.send(emailData)
-      // - AWS SES: await ses.sendEmail(emailParams).promise()
-      // - Mailgun: await mailgun.messages().send(emailData)
+      const result = await emailService.sendEmail({
+        to: email.recipientEmail,
+        subject: `Campaign: ${email.campaignId}`,
+        html: `
+          <h2>Hello ${email.recipientName || 'Valued Customer'}!</h2>
+          <p>This is a test email from EmailFlow Pro.</p>
+          <p><strong>Campaign ID:</strong> ${email.campaignId}</p>
+          <p><strong>Recipient:</strong> ${email.recipientEmail}</p>
+          <hr>
+          <p><small>This email was sent via EmailFlow Pro priority queue system.</small></p>
+        `
+      })
       
-      return { success: true }
+      return result
     } catch (error: any) {
       return { success: false, error: error.message }
     }

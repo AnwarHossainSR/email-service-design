@@ -46,76 +46,117 @@ const pool = new Pool({
 const db = drizzle(pool);
 
 async function seed() {
-  console.log("🌱 Seeding database...");
+  console.log("🌱 Seeding database with realistic data...");
 
   try {
-    // Create test users
     const hashedPassword = await bcrypt.hash("password123", 10);
     
-    const [user1, user2] = await db.insert(users).values([
+    const [user1, user2, user3] = await db.insert(users).values([
       {
-        email: "user1@example.com",
-        name: "John Doe",
+        email: "enterprise@example.com",
+        name: "Enterprise Corp",
         password: hashedPassword,
       },
       {
-        email: "user2@example.com", 
-        name: "Jane Smith",
+        email: "medium@example.com", 
+        name: "Medium Business",
+        password: hashedPassword,
+      },
+      {
+        email: "small@example.com",
+        name: "Small Business",
         password: hashedPassword,
       }
     ]).returning();
 
     console.log("✅ Users created");
 
-    // Create customers for user1 (100,000 customers)
-    const user1Customers = [];
-    for (let i = 1; i <= 1000; i++) { // Reduced for demo
-      user1Customers.push({
-        userId: user1.id,
-        email: `customer${i}@user1.com`,
-        name: `Customer ${i}`,
-        status: "active"
-      });
+    // User 1: 100,000 customers (enterprise)
+    console.log("Creating 100,000 customers for enterprise user...");
+    for (let batch = 0; batch < 20; batch++) {
+      const batchCustomers = [];
+      for (let i = 1; i <= 5000; i++) {
+        const customerNum = batch * 5000 + i;
+        batchCustomers.push({
+          userId: user1.id,
+          email: `enterprise.customer${customerNum}@bigcorp.com`,
+          name: `Enterprise Customer ${customerNum}`,
+          status: "active"
+        });
+      }
+      await db.insert(customers).values(batchCustomers);
+      console.log(`Inserted ${(batch + 1) * 5000} enterprise customers...`);
     }
 
-    // Create customers for user2 (100 customers)
-    const user2Customers = [];
+    // User 2: 10,000 customers (medium business)
+    console.log("Creating 10,000 customers for medium business...");
+    for (let batch = 0; batch < 5; batch++) {
+      const batchCustomers = [];
+      for (let i = 1; i <= 2000; i++) {
+        const customerNum = batch * 2000 + i;
+        batchCustomers.push({
+          userId: user2.id,
+          email: `medium.customer${customerNum}@mediumbiz.com`,
+          name: `Medium Customer ${customerNum}`,
+          status: "active"
+        });
+      }
+      await db.insert(customers).values(batchCustomers);
+      console.log(`Inserted ${(batch + 1) * 2000} medium business customers...`);
+    }
+
+    // User 3: 100 customers (small business)
+    console.log("Creating 100 customers for small business...");
+    const smallCustomers = [];
     for (let i = 1; i <= 100; i++) {
-      user2Customers.push({
-        userId: user2.id,
-        email: `customer${i}@user2.com`,
-        name: `Customer ${i}`,
+      smallCustomers.push({
+        userId: user3.id,
+        email: `small.customer${i}@smallbiz.com`,
+        name: `Small Customer ${i}`,
         status: "active"
       });
     }
+    await db.insert(customers).values(smallCustomers);
 
-    await db.insert(customers).values([...user1Customers, ...user2Customers]);
     console.log("✅ Customers created");
 
     // Create sample campaigns
-    const [campaign1, campaign2] = await db.insert(campaigns).values([
+    await db.insert(campaigns).values([
       {
         userId: user1.id,
-        name: "Summer Sale 2024",
-        subject: "🌞 Huge Summer Discounts Inside!",
-        content: "<h1>Summer Sale</h1><p>Get 50% off everything!</p>",
+        name: "Enterprise Newsletter Q4",
+        subject: "🏢 Enterprise Updates & Insights",
+        content: "<h1>Enterprise Newsletter</h1><p>Quarterly business updates...</p>",
         status: "draft",
         priority: "normal",
-        totalRecipients: 1000,
+        totalRecipients: 100000,
       },
       {
         userId: user2.id,
-        name: "Product Launch",
-        subject: "🚀 New Product Launch",
-        content: "<h1>New Product</h1><p>Check out our latest innovation!</p>",
+        name: "Medium Business Promotion",
+        subject: "🎯 Special Offer for Our Valued Customers",
+        content: "<h1>Special Promotion</h1><p>Limited time offer...</p>",
         status: "draft", 
+        priority: "normal",
+        totalRecipients: 10000,
+      },
+      {
+        userId: user3.id,
+        name: "Urgent System Maintenance Alert",
+        subject: "🚨 URGENT: System Maintenance Tonight",
+        content: "<h1>System Maintenance</h1><p>Important maintenance notification...</p>",
+        status: "draft",
         priority: "high",
         totalRecipients: 100,
       }
-    ]).returning();
+    ]);
 
     console.log("✅ Campaigns created");
     console.log("🎉 Database seeded successfully!");
+    console.log("📊 Summary:");
+    console.log("- Enterprise user: 100,000 customers");
+    console.log("- Medium business: 10,000 customers");  
+    console.log("- Small business: 100 customers");
     
   } catch (error) {
     console.error("❌ Seeding failed:", error);

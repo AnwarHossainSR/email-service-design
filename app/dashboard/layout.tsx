@@ -15,16 +15,29 @@ export default function DashboardRootLayout({
   const router = useRouter()
 
   useEffect(() => {
-    const token = localStorage.getItem("token")
-    const userData = localStorage.getItem("user")
+    const checkAuth = () => {
+      const token = localStorage.getItem("token")
+      const userData = localStorage.getItem("user")
 
-    if (!token || !userData) {
-      router.push("/")
-      return
+      if (!token || !userData) {
+        router.replace("/")
+        return
+      }
+
+      try {
+        const parsedUser = JSON.parse(userData)
+        setUser(parsedUser)
+      } catch (error) {
+        localStorage.removeItem("token")
+        localStorage.removeItem("user")
+        router.replace("/")
+        return
+      }
+      
+      setLoading(false)
     }
 
-    setUser(JSON.parse(userData))
-    setLoading(false)
+    checkAuth()
   }, [router])
 
   if (loading) {
