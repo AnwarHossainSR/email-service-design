@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function Home() {
   const [isLogin, setIsLogin] = useState(true);
@@ -34,6 +34,14 @@ export default function Home() {
   const [error, setError] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const router = useRouter();
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      router.replace("/dashboard");
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,7 +239,7 @@ export default function Home() {
           </div>
           <Button
             onClick={() => setShowAuth(true)}
-            className="bg-linear-to-r from-blue-600 to-purple-600"
+            className="bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
           >
             Get Started
             <ArrowRight className="ml-2 h-4 w-4" />

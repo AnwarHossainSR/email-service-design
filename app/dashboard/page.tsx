@@ -1,13 +1,16 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+"use client"
+
+import { useEffect, useState } from "react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+} from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -17,44 +20,85 @@ import {
   Plus,
   TrendingUp,
   Users,
-} from "lucide-react";
-import Link from "next/link";
+  RefreshCw
+} from "lucide-react"
+import Link from "next/link"
+
+interface DashboardStats {
+  totalCampaigns: number
+  totalCustomers: number
+  emailsSent: number
+  queuePending: number
+  openRate: number
+  clickRate: number
+  revenue: number
+}
 
 export default function Dashboard() {
-  const metrics = [
-    {
-      title: "Total Campaigns",
-      value: "24",
-      change: "+12%",
-      trend: "up",
-      icon: Mail,
-      description: "Active email campaigns",
-    },
-    {
-      title: "Total Subscribers",
-      value: "12,543",
-      change: "+8.2%",
-      trend: "up",
-      icon: Users,
-      description: "Active subscribers",
-    },
-    {
-      title: "Open Rate",
-      value: "24.8%",
-      change: "+2.1%",
-      trend: "up",
-      icon: Eye,
-      description: "Average open rate",
-    },
-    {
-      title: "Revenue",
-      value: "$45,231",
-      change: "-3.2%",
-      trend: "down",
-      icon: DollarSign,
-      description: "This month's revenue",
-    },
-  ];
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchStats()
+    const interval = setInterval(fetchStats, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const fetchStats = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      if (!token) return
+      
+      const response = await fetch("/api/dashboard/stats", {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const data = await response.json()
+      setStats(data)
+    } catch (error) {
+      console.error("Error fetching stats:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getMetrics = () => {
+    if (!stats) return []
+    
+    return [
+      {
+        title: "Total Campaigns",
+        value: (stats.totalCampaigns || 0).toLocaleString(),
+        change: "+12%",
+        trend: "up",
+        icon: Mail,
+        description: "Active email campaigns"
+      },
+      {
+        title: "Total Subscribers",
+        value: (stats.totalCustomers || 0).toLocaleString(),
+        change: "+8.2%",
+        trend: "up",
+        icon: Users,
+        description: "Active subscribers"
+      },
+      {
+        title: "Open Rate",
+        value: `${stats.openRate || 0}%`,
+        change: "+2.1%",
+        trend: "up",
+        icon: Eye,
+        description: "Average open rate"
+      },
+      {
+        title: "Revenue",
+        value: `$${(stats.revenue || 0).toLocaleString()}`,
+        change: "-3.2%",
+        trend: "down",
+        icon: DollarSign,
+        description: "This month's revenue"
+      }
+    ]
+  }
 
   const recentCampaigns = [
     {
@@ -63,7 +107,7 @@ export default function Dashboard() {
       sent: "12,543",
       opens: "3,124",
       clicks: "456",
-      date: "2024-01-15",
+      date: "2024-01-15"
     },
     {
       name: "Product Launch",
@@ -71,7 +115,7 @@ export default function Dashboard() {
       sent: "8,921",
       opens: "2,847",
       clicks: "623",
-      date: "2024-01-12",
+      date: "2024-01-12"
     },
     {
       name: "Newsletter #45",
@@ -79,9 +123,9 @@ export default function Dashboard() {
       sent: "0",
       opens: "0",
       clicks: "0",
-      date: "2024-01-10",
-    },
-  ];
+      date: "2024-01-10"
+    }
+  ]
 
   return (
     <div className="space-y-8">
@@ -94,8 +138,12 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchStats} disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           <Button variant="outline" asChild>
-            <Link href="/dashboadr/analytics">
+            <Link href="/dashboard/analytics">
               <TrendingUp className="mr-2 h-4 w-4" />
               Analytics
             </Link>
@@ -111,42 +159,56 @@ export default function Dashboard() {
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {metrics.map((metric, index) => {
-          const Icon = metric.icon;
-          const TrendIcon =
-            metric.trend === "up" ? ArrowUpRight : ArrowDownRight;
-          return (
-            <Card key={index} className="hover:shadow-lg transition-shadow">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index} className="animate-pulse">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {metric.title}
-                </CardTitle>
-                <Icon className="h-4 w-4 text-muted-foreground" />
+                <div className="h-4 bg-gray-200 rounded w-24"></div>
+                <div className="h-4 w-4 bg-gray-200 rounded"></div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{metric.value}</div>
-                <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                  <TrendIcon
-                    className={`h-3 w-3 ${
-                      metric.trend === "up" ? "text-green-500" : "text-red-500"
-                    }`}
-                  />
-                  <span
-                    className={
-                      metric.trend === "up" ? "text-green-500" : "text-red-500"
-                    }
-                  >
-                    {metric.change}
-                  </span>
-                  <span>from last month</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {metric.description}
-                </p>
+                <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded w-32"></div>
               </CardContent>
             </Card>
-          );
-        })}
+          ))
+        ) : (
+          getMetrics().map((metric, index) => {
+            const Icon = metric.icon
+            const TrendIcon = metric.trend === "up" ? ArrowUpRight : ArrowDownRight
+            return (
+              <Card key={index} className="hover:shadow-lg transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {metric.title}
+                  </CardTitle>
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{metric.value}</div>
+                  <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                    <TrendIcon
+                      className={`h-3 w-3 ${
+                        metric.trend === "up" ? "text-green-500" : "text-red-500"
+                      }`}
+                    />
+                    <span
+                      className={
+                        metric.trend === "up" ? "text-green-500" : "text-red-500"
+                      }
+                    >
+                      {metric.change}
+                    </span>
+                    <span>from last month</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {metric.description}
+                  </p>
+                </CardContent>
+              </Card>
+            )
+          })
+        )}
       </div>
 
       {/* Main Content */}
@@ -216,23 +278,23 @@ export default function Dashboard() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Open Rate</span>
-                  <span>24.8%</span>
+                  <span>{stats?.openRate || 0}%</span>
                 </div>
-                <Progress value={24.8} className="h-2" />
+                <Progress value={stats?.openRate || 0} className="h-2" />
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Click Rate</span>
-                  <span>3.6%</span>
+                  <span>{stats?.clickRate || 0}%</span>
                 </div>
-                <Progress value={3.6} className="h-2" />
+                <Progress value={stats?.clickRate || 0} className="h-2" />
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Conversion Rate</span>
-                  <span>1.2%</span>
+                  <span>Queue Pending</span>
+                  <span>{stats?.queuePending || 0}</span>
                 </div>
-                <Progress value={1.2} className="h-2" />
+                <Progress value={Math.min((stats?.queuePending || 0) / 100, 100)} className="h-2" />
               </div>
             </CardContent>
           </Card>
@@ -242,32 +304,20 @@ export default function Dashboard() {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button
-                className="w-full justify-start"
-                variant="outline"
-                asChild
-              >
+              <Button className="w-full justify-start" variant="outline" asChild>
                 <Link href="/dashboard/campaigns/new">
                   <Plus className="mr-2 h-4 w-4" />
                   Create Campaign
                 </Link>
               </Button>
-              <Button
-                className="w-full justify-start"
-                variant="outline"
-                asChild
-              >
+              <Button className="w-full justify-start" variant="outline" asChild>
                 <Link href="/dashboard/customers/import">
                   <Users className="mr-2 h-4 w-4" />
                   Import Contacts
                 </Link>
               </Button>
-              <Button
-                className="w-full justify-start"
-                variant="outline"
-                asChild
-              >
-                <Link href="/analytics">
+              <Button className="w-full justify-start" variant="outline" asChild>
+                <Link href="/dashboard/analytics">
                   <TrendingUp className="mr-2 h-4 w-4" />
                   View Analytics
                 </Link>
@@ -277,5 +327,5 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
-  );
+  )
 }
