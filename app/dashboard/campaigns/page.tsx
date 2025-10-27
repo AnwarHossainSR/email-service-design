@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Send, Users, Eye, MousePointer, Calendar, MoreHorizontal } from "lucide-react"
+import { Plus, Search, Send, Users, Eye, MousePointer, Calendar, MoreHorizontal, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import {
   DropdownMenu,
@@ -32,6 +32,8 @@ export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   useEffect(() => {
     fetchCampaigns()
@@ -73,8 +75,14 @@ export default function CampaignsPage() {
   }
 
   const filteredCampaigns = campaigns.filter(campaign =>
-    campaign.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    campaign.subject.toLowerCase().includes(searchTerm.toLowerCase())
+    campaign.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    campaign.subject?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const totalPages = Math.ceil(filteredCampaigns.length / itemsPerPage)
+  const paginatedCampaigns = filteredCampaigns.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   )
 
   if (loading) return <div>Loading campaigns...</div>
@@ -84,7 +92,7 @@ export default function CampaignsPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Email Campaigns</h1>
         <Button asChild>
-          <Link href="/campaigns/new">
+          <Link href="/dashboard/campaigns/new">
             <Plus className="mr-2 h-4 w-4" />
             New Campaign
           </Link>
@@ -111,7 +119,7 @@ export default function CampaignsPage() {
               <h3 className="text-lg font-semibold mb-2">No campaigns yet</h3>
               <p className="text-muted-foreground mb-4">Create your first email campaign to get started</p>
               <Button asChild>
-                <Link href="/campaigns/new">
+                <Link href="/dashboard/campaigns/new">
                   <Plus className="mr-2 h-4 w-4" />
                   Create Campaign
                 </Link>
@@ -119,7 +127,7 @@ export default function CampaignsPage() {
             </CardContent>
           </Card>
         ) : (
-          filteredCampaigns.map((campaign) => (
+          paginatedCampaigns.map((campaign) => (
             <Card key={campaign.id} className="hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -197,6 +205,30 @@ export default function CampaignsPage() {
           ))
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center space-x-2 mt-6">
+          <Button 
+            variant="outline" 
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            Previous
+          </Button>
+          <span className="flex items-center px-4">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button 
+            variant="outline" 
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+          >
+            Next
+            <ChevronRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

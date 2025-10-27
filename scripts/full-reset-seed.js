@@ -27,6 +27,10 @@ async function fullResetAndSeed() {
         name VARCHAR(255) NOT NULL,
         password VARCHAR(255) NOT NULL,
         role VARCHAR(20) DEFAULT 'user' NOT NULL,
+        subscription_plan VARCHAR(20) DEFAULT 'free' NOT NULL,
+        emails_sent_this_month INTEGER DEFAULT 0,
+        email_limit INTEGER DEFAULT 20,
+        subscription_expires_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW() NOT NULL,
         updated_at TIMESTAMP DEFAULT NOW() NOT NULL
       )
@@ -117,11 +121,11 @@ async function fullResetAndSeed() {
     const userPassword = await bcrypt.hash('user123', 10)
     
     const users = await sql`
-      INSERT INTO users (email, name, password, role) VALUES
-      ('admin@emailflow.com', 'System Administrator', ${adminPassword}, 'admin'),
-      ('john@company.com', 'John Smith', ${userPassword}, 'user'),
-      ('sarah@startup.com', 'Sarah Johnson', ${userPassword}, 'user'),
-      ('mike@enterprise.com', 'Mike Wilson', ${userPassword}, 'user')
+      INSERT INTO users (email, name, password, role, subscription_plan, email_limit, emails_sent_this_month) VALUES
+      ('admin@emailflow.com', 'System Administrator', ${adminPassword}, 'admin', 'enterprise', 1000000, 0),
+      ('john@company.com', 'John Smith', ${userPassword}, 'user', 'free', 20, 15),
+      ('sarah@startup.com', 'Sarah Johnson', ${userPassword}, 'user', 'pro', 10000, 4500),
+      ('mike@enterprise.com', 'Mike Wilson', ${userPassword}, 'user', 'enterprise', 100000, 9500)
       RETURNING id, email, name, role
     `
 
